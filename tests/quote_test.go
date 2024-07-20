@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"avaliacaofreterapido/internal/domain/appl"
+	"avaliacaofreterapido/internal/appl"
 	"avaliacaofreterapido/internal/domain/quote"
 	"encoding/json"
 	"reflect"
