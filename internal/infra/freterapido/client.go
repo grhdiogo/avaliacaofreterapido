@@ -39,16 +39,16 @@ func (c *frClient) CreateFreight(r *CreateFreightQuotationRequest) (*CreateFreig
 		return nil, err
 	}
 	defer resp.Body.Close()
-	// verify response status code
-	if resp.StatusCode != 200 {
-		return nil, newStatusCodeErr(resp.StatusCode)
-	}
-	result := new(CreateFreightQuotationResponse)
 	//
 	decoded, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	// verify response status code
+	if resp.StatusCode != 200 {
+		return nil, newStatusCodeErr(resp.StatusCode)
+	}
+	result := new(CreateFreightQuotationResponse)
 	// unmarshall response
 	err = json.Unmarshal(decoded, result)
 	if err != nil {

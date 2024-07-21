@@ -4,42 +4,60 @@ import (
 	"avaliacaofreterapido/internal/domain/quote"
 	"avaliacaofreterapido/internal/infra/cep"
 	"avaliacaofreterapido/internal/infra/freterapido"
+	"avaliacaofreterapido/internal/infra/postgres"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
+	"golang.org/x/net/context"
 )
 
 type QuoteRequestParams struct {
-	Recipient Recipient `json:"recipient"`
-	Volumes   []Volume  `json:"volumes"`
+	Recipient Recipient
+	Volumes   []Volume
 }
 
 type Recipient struct {
-	Address Address `json:"address"`
+	Address Address
 }
 
 type Address struct {
-	Zipcode string `json:"zipcode"`
+	Zipcode string
 }
 
 type Volume struct {
-	Category      int     `json:"category"`
-	Amount        int     `json:"amount"`
-	UnitaryWeight int     `json:"unitary_weight"`
-	Price         float64 `json:"price"`
-	Sku           string  `json:"sku"`
-	Height        float64 `json:"height"`
-	Width         float64 `json:"width"`
-	Length        float64 `json:"length"`
+	Category      int
+	Amount        int
+	UnitaryWeight float64
+	Price         float64
+	Sku           string
+	Height        float64
+	Width         float64
+	Length        float64
+}
+
+type Carrier struct {
+	Name     string
+	Service  string
+	Deadline int
+	Price    float64
+}
+
+type CreateQuoteResponse struct {
+	Carriers []Carrier
 }
 
 type QuoteService interface {
-	GetQuotes(r QuoteRequestParams) (*quote.Entity, error)
+	GetQuotes(r QuoteRequestParams) (*CreateQuoteResponse, error)
 }
 
-type quoteServiceImpl struct{}
+type quoteServiceImpl struct {
+	ctx context.Context
+}
 
 func (s *quoteServiceImpl) validate(p QuoteRequestParams) error {
 	var errs = make([]string, 0)
@@ -92,13 +110,64 @@ func (s *quoteServiceImpl) validate(p QuoteRequestParams) error {
 	return nil
 }
 
-func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*quote.Entity, error) {
+func (s *quoteServiceImpl) saveQuotesOnDatabase(params QuoteRequestParams, req *freterapido.CreateFreightQuotationRequest, resp *freterapido.CreateFreightQuotationResponse) error {
+	// get conn
+	tx, err := postgres.GetInstance().GetConn()
+	if err != nil {
+		return errors.New("Falhar ao conectar com banco de dados")
+	}
+	//
+	rep := postgres.NewQuoteRepository(s.ctx, tx)
+	rawResponse, err := json.Marshal(resp)
+	if err != nil {
+		return errors.New("Falha ao transformar dados de resposta da cotação")
+	}
+	//
+	volumes := make([]quote.Volume, 0)
+	for _, v := range params.Volumes {
+		//
+		volumes = append(volumes, quote.Volume{
+			Category:      v.Category,
+			Amount:        v.Amount,
+			UnitaryWeight: v.UnitaryWeight,
+			Price:         v.Price,
+			Sku:           v.Sku,
+			Height:        v.Height,
+			Width:         v.Width,
+			Length:        v.Length,
+		})
+	}
+	rawReq, _ := json.Marshal(req)
+	// store
+	err = rep.Store(quote.Entity{
+		ID:      uuid.New().String(),
+		CpfCnpj: req.Shipper.RegisteredNumber,
+		Address: quote.Address{
+			Cep: params.Recipient.Address.Zipcode,
+		},
+		RawResponse: rawResponse,
+		RawRequest:  rawReq,
+		Volumes:     volumes,
+	})
+	if err != nil {
+		return errors.New("Falha ao salvar cotação")
+	}
+	// commit transaction
+	err = tx.Commit(s.ctx)
+	if err != nil {
+		return errors.New("Falha ao salvar dados no banco")
+	}
+	// sucess
+	return nil
+}
+
+func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*CreateQuoteResponse, error) {
 	// valida os parametros de entrada
 	err := s.validate(params)
 	if err != nil {
 		return nil, err
 	}
-	// instanciar repositório
+	// rep
 	frclient := freterapido.NewFrClient(freterapido.Config{
 		BaseUrl: os.Getenv("FRETERAPIDO_HOST"),
 	})
@@ -117,8 +186,8 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*quote.Entity, 
 	}
 	zipcodeRecipient, _ := strconv.Atoi(params.Recipient.Address.Zipcode)
 	zipcodeDispather, _ := strconv.Atoi(os.Getenv("FRETERAPIDO_DISPATHER_CEP"))
-	//
-	response, err := frclient.CreateFreight(&freterapido.CreateFreightQuotationRequest{
+	// reqeust to freterapido api
+	req := &freterapido.CreateFreightQuotationRequest{
 		Shipper: freterapido.Shipper{
 			RegisteredNumber: os.Getenv("FRETERAPIDO_CNPJ"),
 			Token:            os.Getenv("FRETERAPIDO_TOKEN"),
@@ -139,16 +208,24 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*quote.Entity, 
 		SimulationType: []freterapido.ReturnSimulationTypeKind{
 			freterapido.ReturnSimulationTypeFract,
 		},
-	})
+	}
+	//
+	response, err := frclient.CreateFreight(req)
 	if err != nil {
 		return nil, err
 	}
-	result := new(quote.Entity)
-	// verifica se tem ofertas
+	// save
+	err = s.saveQuotesOnDatabase(params, req, response)
+	if err != nil {
+		return nil, err
+	}
+	//
+	result := new(CreateQuoteResponse)
+	// verify if have offers
 	if len(response.Dispatchers) > 0 {
 		dispather := response.Dispatchers[0]
 		for _, v := range dispather.Offers {
-			result.Carrier = append(result.Carrier, quote.Carrier{
+			result.Carriers = append(result.Carriers, Carrier{
 				Name:     v.Carrier.Name,
 				Service:  v.Service,
 				Deadline: v.DeliveryTime.Days,
@@ -159,6 +236,8 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*quote.Entity, 
 	return result, nil
 }
 
-func NewQuoteService() QuoteService {
-	return &quoteServiceImpl{}
+func NewQuoteService(ctx context.Context) QuoteService {
+	return &quoteServiceImpl{
+		ctx: ctx,
+	}
 }

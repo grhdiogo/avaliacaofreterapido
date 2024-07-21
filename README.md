@@ -12,9 +12,11 @@ FRETERAPIDO_HOST = "https://sp.freterapido.com/api/v3"
 FRETERAPIDO_TOKEN="1d52a9b6b78cf07b08586152459a5c90"
 FRETERAPIDO_PLATFORM_CODE="5AKVkHqCn"
 FRETERAPIDO_DISPATHER_CEP="29161376"
+FRETERAPIDO_CNPJ="25438296000158"
 
 # TODO:
 carrier.Deadline é string ou int??
 Verificar qual o tipo de simulação será enviado
 É um dispather com vários volumes ou vários dispathers com 1 volume
 UnitaryPrice vai ser o valor que é passado, ou o valor dividido pela quantidade
+Tratar sempre como dispather[0] já que só mandarei 1?

@@ -189,7 +189,7 @@ func newStatusCodeErr(sttCode int) error {
 		return errors.New(msg)
 	}
 	// case not exists, return default
-	return fmt.Errorf("Requisição falhou com código: %d", sttCode)
+	return fmt.Errorf("Requisição para api freterapido falhou com código: %d", sttCode)
 }
 
 const (

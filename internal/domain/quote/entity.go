@@ -1,12 +1,25 @@
 package quote
 
-type Entity struct {
-	Carrier []Carrier `json:"carrier"`
+type Address struct {
+	Cep string
 }
 
-type Carrier struct {
-	Name     string  `json:"name"`
-	Service  string  `json:"service"`
-	Deadline int     `json:"deadline"`
-	Price    float64 `json:"price"`
+type Volume struct {
+	Category      int
+	Amount        int
+	UnitaryWeight float64
+	Price         float64
+	Sku           string
+	Height        float64
+	Width         float64
+	Length        float64
+}
+
+type Entity struct {
+	ID          string
+	CpfCnpj     string
+	Address     Address
+	Volumes     []Volume
+	RawRequest  []byte
+	RawResponse []byte
 }
