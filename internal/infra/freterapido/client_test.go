@@ -2,13 +2,8 @@ package freterapido
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
-)
-
-// TODO: Remover daqui?
-const (
-	cnpj    = "25438296000158"
-	country = "Bra"
 )
 
 func Test_frClient_CreateFreight(t *testing.T) {
@@ -18,19 +13,19 @@ func Test_frClient_CreateFreight(t *testing.T) {
 	request := args{
 		&CreateFreightQuotationRequest{
 			Shipper: Shipper{
-				RegisteredNumber: cnpj,
+				RegisteredNumber: "25438296000158",
 				Token:            "1d52a9b6b78cf07b08586152459a5c90",
 				PlatformCode:     "5AKVkHqCn",
 			},
 			Recipient: Recipient{
 				Type:    RecipientNaturalPerson,
-				Country: country,
+				Country: "BRA",
 				Zipcode: 01311000,
 			},
 			Dispatchers: []Dispatcher{
 				{
-					RegisteredNumber: cnpj,
-					Zipcode:          01311000,
+					RegisteredNumber: "25438296000158",
+					Zipcode:          29161376,
 					Volumes: []DispatcherVolume{
 						{
 							Amount:        1,
@@ -46,11 +41,50 @@ func Test_frClient_CreateFreight(t *testing.T) {
 				},
 			},
 			SimulationType: []ReturnSimulationTypeKind{
-				ReturnSimulationTypeCapacity,
+				ReturnSimulationTypeFract,
 			},
 		},
 	}
-	response := &CreateFreightQuotationResponse{}
+	response := &CreateFreightQuotationResponse{
+		Dispatchers: []CreateFreightQuotationResponseDispatcher{
+			{
+				Offers: []CreateFreightQuotationResponseDispatcherOffer{
+					{
+						Offer:          1,
+						SimulationType: 0,
+						Carrier: CreateFreightQuotationResponseDispatcherOfferCarrier{
+							Reference:        281,
+							Name:             "CORREIOS",
+							RegisteredNumber: "34028316000103",
+							StateInscription: "ISENTO",
+							Logo:             "https://s3.amazonaws.com/public.prod.freterapido.uploads/transportadora/foto-perfil/34028316000103.png",
+						},
+						Service: "PAC",
+						DeliveryTime: CreateFreightQuotationResponseDispatcherOfferDeliveryTime{
+							Days:          5,
+							EstimatedDate: "2024-07-26",
+						},
+						Expiration: "2024-07-26T00:00:00Z",
+						CostPrice:  29.44,
+						FinalPrice: 29.44,
+						Weights: CreateFreightQuotationResponseDispatcherOfferWeights{
+							Real: 5,
+						},
+						OriginalDeliveryTime: CreateFreightQuotationResponseDispatcherOfferOriginalDeliveryTime{
+							Days:          5,
+							EstimatedDate: "2024-07-26",
+						},
+						Identifier:   "03298",
+						HomeDelivery: true,
+						Modal:        "Rodoviário",
+						Esg: CreateFreightQuotationResponseDispatcherOfferEsg{
+							Co2EmissionEstimate: 294.292254424126,
+						},
+					},
+				},
+			},
+		},
+	}
 	//
 	tests := []struct {
 		name    string
@@ -72,23 +106,7 @@ func Test_frClient_CreateFreight(t *testing.T) {
 				t.Errorf("frClient.CreateFreight() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			// resultado esperado
-			// {
-			// 	"dispatchers": [
-			// 		{
-			// 			"id": "669c140b81e7aa408fedb939",
-			// 			"request_id": "669c140b81e7aa408fedb938",
-			// 			"registered_number_shipper": "25438296000158",
-			// 			"registered_number_dispatcher": "25438296000158",
-			// 			"zipcode_origin": 365056
-			// 		}
-			// 	]
-			// }
-			// id, request_id são gerados, então não da para comparar, comparar os outros dados
-			gotDispather := got.Dispatchers[0]
-			requestDispather := request.r.Dispatchers[0]
-			expectedResult := gotDispather.RegisteredNumberDispatcher == requestDispather.RegisteredNumber && requestDispather.Zipcode == gotDispather.ZipcodeOrigin
-			if !expectedResult {
+			if len(got.Dispatchers) != 1 && reflect.DeepEqual(got.Dispatchers[0].Offers, tt.want.Dispatchers[0].Offers) {
 				t.Fatal("Resultado não esperado")
 			}
 			// passou

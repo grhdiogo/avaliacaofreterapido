@@ -4,12 +4,19 @@ import (
 	"avaliacaofreterapido/internal/appl"
 	"avaliacaofreterapido/internal/domain/quote"
 	"encoding/json"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 )
 
 func TestQuote(t *testing.T) {
 	t.Run("create-quote", func(t *testing.T) {
+		os.Setenv("FRETERAPIDO_HOST", "https://sp.freterapido.com/api/v3")
+		os.Setenv("FRETERAPIDO_TOKEN", "1d52a9b6b78cf07b08586152459a5c90")
+		os.Setenv("FRETERAPIDO_PLATFORM_CODE", "5AKVkHqCn")
+		os.Setenv("FRETERAPIDO_DISPATHER_CEP", "29161376")
+		os.Setenv("FRETERAPIDO_CNPJ", "25438296000158")
 		// entrada de dados
 		dataEntry := `{
 			"recipient":{
@@ -76,6 +83,7 @@ func TestQuote(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fmt.Println(result)
 		if !reflect.DeepEqual(result, want) {
 			t.Fatal("Resultado não é o esperado")
 		}
