@@ -189,7 +189,7 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*CreateQuoteRes
 	for _, v := range params.Volumes {
 		volumes = append(volumes, freterapido.DispatcherVolume{
 			Amount:        v.Amount,
-			Category:      freterapido.CategoryMapping[v.Category],
+			Category:      strconv.Itoa(v.Category),
 			UnitaryWeight: float64(v.UnitaryWeight),
 			UnitaryPrice:  v.Price / float64(v.Amount),
 			Sku:           v.Sku,
