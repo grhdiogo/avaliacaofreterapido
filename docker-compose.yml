@@ -1,0 +1,43 @@
+version: '3.9'
+services:
+  app:
+    container_name: fr_golang_container
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_PORT=${DATABASE_PORT}
+      - PORT=${PORT}
+      - FRETERAPIDO_TOKEN=${FRETERAPIDO_TOKEN}
+      - FRETERAPIDO_PLATFORM_CODE=${FRETERAPIDO_PLATFORM_CODE}
+      - FRETERAPIDO_DISPATHER_CEP=${FRETERAPIDO_DISPATHER_CEP}
+      - FRETERAPIDO_CNPJ=${FRETERAPIDO_CNPJ}
+      - FRETERAPIDO_HOST=${FRETERAPIDO_HOST}
+    tty: true
+    build: .
+    ports:
+      - 8000:8000
+    restart: on-failure
+    volumes:
+      - .:/app
+    depends_on:
+      - postgresdb
+    networks:
+      - learning
+  postgresdb:
+    image: postgres:latest
+    container_name: fr_postgres_container
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - DATABASE_HOST=${DATABASE_HOST}
+    ports:
+      - '1234:5432'
+    networks:
+      - learning
+# Networks to be created to facilitate communication between containers
+networks:
+  learning:
+    driver: bridge

@@ -5,6 +5,7 @@ import (
 	"avaliacaofreterapido/internal/interf"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // ========================================================================
@@ -104,4 +105,66 @@ func CreateQuote(r *http.Request) (any, *interf.ErrorHandler) {
 	return &CreateQuoteResponse{
 		Carrier: carriers,
 	}, nil
+}
+
+// ========================================================================
+// METRICS
+// ========================================================================
+
+type metricsRequest struct {
+	LastQuotes int
+}
+
+type carrierMetric struct {
+	Name                 string  `json:"name"`
+	ResultQuantity       int     `json:"resultQuantity"`
+	TotalValue           float64 `json:"totalValue"`
+	MostExpensiveFreight float64 `json:"mostExpensiveFreight"`
+	CheaperFreight       float64 `json:"cheaperFreight"`
+	AveragePrice         float64 `json:"averagePrice"`
+}
+
+type metricsResponse struct {
+	CarriersMetric []carrierMetric `json:"carriersMetric"`
+}
+
+func Metrics(r *http.Request) (any, *interf.ErrorHandler) {
+	lq := r.URL.Query().Get("last_quotes")
+	//
+	lastQuotes, err := strconv.Atoi(lq)
+	if err != nil || lastQuotes < 0 {
+		// default limit is -1 to list all
+		lastQuotes = -1
+	}
+	//
+	request := &metricsRequest{
+		LastQuotes: lastQuotes,
+	}
+	// service
+	app := appl.NewQuoteService(r.Context())
+	metric, err := app.Metricts(request.LastQuotes)
+	if err != nil {
+		return nil, &interf.ErrorHandler{
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+			ErrCode:    1001,
+		}
+	}
+	// success
+	result := &metricsResponse{
+		CarriersMetric: make([]carrierMetric, 0),
+	}
+	// adapt metrics to response
+	for n, v := range metric.CarriersMetrics {
+		result.CarriersMetric = append(result.CarriersMetric, carrierMetric{
+			Name:                 n,
+			ResultQuantity:       v.ResultQuantity,
+			TotalValue:           v.TotalValue,
+			MostExpensiveFreight: v.MostExpensiveFreight,
+			CheaperFreight:       v.CheaperFreight,
+			AveragePrice:         v.TotalValue / float64(v.ResultQuantity),
+		})
+	}
+
+	return result, nil
 }

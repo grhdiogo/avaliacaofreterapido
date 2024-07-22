@@ -11,4 +11,9 @@ var routes = []interf.RouteConfig{
 		Path:    "/quote",
 		Handler: CreateQuote,
 	},
+	{
+		Method:  http.MethodGet,
+		Path:    "/metrics",
+		Handler: Metrics,
+	},
 }

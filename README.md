@@ -20,3 +20,14 @@ Verificar qual o tipo de simulação será enviado
 É um dispather com vários volumes ou vários dispathers com 1 volume
 UnitaryPrice vai ser o valor que é passado, ou o valor dividido pela quantidade
 Tratar sempre como dispather[0] já que só mandarei 1?
+
+
+# How to execute
+
+## Requirements:
+  Docker
+## Steps:
+
+1º On root folder, execute docker-compose build
+
+2º On root folder, execute docker-compose up

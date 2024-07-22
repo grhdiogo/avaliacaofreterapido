@@ -51,8 +51,22 @@ type CreateQuoteResponse struct {
 	Carriers []Carrier
 }
 
+type CarrierMetrict struct {
+	ResultQuantity       int
+	TotalValue           float64
+	MostExpensiveFreight float64
+	CheaperFreight       float64
+}
+
+type Metric struct {
+	CarriersMetrics map[string]CarrierMetrict
+}
+
 type QuoteService interface {
+	// GetQuotes execute a quotation for volumes
 	GetQuotes(r QuoteRequestParams) (*CreateQuoteResponse, error)
+	// Metricts calculate metrics of the quotatiosn storaged in GetQuotes
+	Metricts(limit int) (*Metric, error)
 }
 
 type quoteServiceImpl struct {
@@ -177,7 +191,7 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*CreateQuoteRes
 			Amount:        v.Amount,
 			Category:      freterapido.CategoryMapping[v.Category],
 			UnitaryWeight: float64(v.UnitaryWeight),
-			UnitaryPrice:  v.Price,
+			UnitaryPrice:  v.Price / float64(v.Amount),
 			Sku:           v.Sku,
 			Height:        v.Height,
 			Width:         v.Width,
@@ -222,17 +236,67 @@ func (s *quoteServiceImpl) GetQuotes(params QuoteRequestParams) (*CreateQuoteRes
 	//
 	result := new(CreateQuoteResponse)
 	// verify if have offers
-	if len(response.Dispatchers) > 0 {
-		dispather := response.Dispatchers[0]
-		for _, v := range dispather.Offers {
+	for _, v := range response.Dispatchers {
+		for _, v1 := range v.Offers {
 			result.Carriers = append(result.Carriers, Carrier{
-				Name:     v.Carrier.Name,
-				Service:  v.Service,
-				Deadline: v.DeliveryTime.Days,
-				Price:    v.FinalPrice,
+				Name:     v1.Carrier.Name,
+				Service:  v1.Service,
+				Deadline: v1.DeliveryTime.Days,
+				Price:    v1.FinalPrice,
 			})
 		}
 	}
+	return result, nil
+}
+
+func (s *quoteServiceImpl) Metricts(limit int) (*Metric, error) {
+	// get conn
+	tx, err := postgres.GetInstance().GetConn()
+	if err != nil {
+		return nil, errors.New("Falhar ao conectar com banco de dados")
+	}
+	// list quotations
+	rep := postgres.NewQuoteRepository(s.ctx, tx)
+
+	list, err := rep.List(limit)
+	if err != nil {
+		return nil, errors.New("Falha ao listar cotações")
+	}
+	// result
+	result := &Metric{
+		CarriersMetrics: map[string]CarrierMetrict{},
+	}
+	// decode responses
+	for _, v := range list {
+		resp := new(freterapido.CreateFreightQuotationResponse)
+		// decode response
+		err = json.Unmarshal(v.RawResponse, resp)
+		if err != nil {
+			return nil, errors.New("Falha ao decodificar cotação")
+		}
+		// create metrics
+		for _, dispatcher := range resp.Dispatchers {
+			for _, offer := range dispatcher.Offers {
+				//
+				old := result.CarriersMetrics[offer.Carrier.Name]
+				// add first value
+				if old.ResultQuantity == 0 {
+					old.CheaperFreight = offer.FinalPrice
+				}
+				//
+				new := CarrierMetrict{
+					ResultQuantity:       old.ResultQuantity + 1,
+					TotalValue:           old.TotalValue + offer.FinalPrice,
+					MostExpensiveFreight: bigger(old.MostExpensiveFreight, offer.FinalPrice),
+					CheaperFreight:       smaller(old.CheaperFreight, offer.FinalPrice),
+				}
+				// replace
+				result.CarriersMetrics[offer.Carrier.Name] = new
+			}
+		}
+
+	}
+
 	return result, nil
 }
 
